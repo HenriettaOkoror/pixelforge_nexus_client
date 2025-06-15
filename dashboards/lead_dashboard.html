@@ -1,0 +1,102 @@
+<!-- project_lead.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Project Lead Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <header class="bg-indigo-700 text-white p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold">Project Lead Dashboard</h1>
+    <button onclick="logout()" class="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded">Logout</button>
+  </header>
+
+  <main class="p-6 space-y-6">
+
+    <section>
+      <h2 class="text-xl font-semibold mb-2 text-gray-700">Assigned Projects</h2>
+      <div id="projects" class="grid md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold mb-2 text-gray-700">Team Members</h2>
+      <div id="users" class="grid md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <section>
+      <h2 class="text-xl font-semibold mb-2 text-gray-700">Project Documents</h2>
+      <div id="documents" class="grid md:grid-cols-2 gap-4"></div>
+    </section>
+
+  </main>
+
+  <script>
+    const access = localStorage.getItem("access");
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = "../login.html";
+    }
+
+    async function fetchDashboard() {
+      const headers = { Authorization: `Bearer ${access}` };
+
+      const [projectsRes, docsRes, usersRes] = await Promise.all([
+        fetch("/api/projects/", { headers }),
+        fetch("/api/documents/", { headers }),
+        fetch("/api/assignments/", { headers }),
+      ]);
+
+      const projects = await projectsRes.json();
+      const documents = await docsRes.json();
+      const assignments = await usersRes.json();
+
+      const currentUserId = JSON.parse(atob(access.split('.')[1])).user_id;
+
+      const assignedProjects = projects.filter(p =>
+        assignments.some(a => a.user === currentUserId && a.project === p.id)
+      );
+
+      const team = assignments
+        .filter(a => assignedProjects.some(p => p.id === a.project) && a.user !== currentUserId)
+        .map(a => a.user);
+
+      const uniqueUserIds = [...new Set(team)];
+      const users = await Promise.all(uniqueUserIds.map(id => fetch(`/api/users/${id}/`, { headers }).then(r => r.json())));
+
+      const assignedDocs = documents.filter(doc =>
+        assignedProjects.some(p => p.id === doc.project)
+      );
+
+      document.getElementById("projects").innerHTML = assignedProjects.map(p =>
+        `<div class="p-4 bg-white rounded shadow">
+          <h3 class="text-lg font-semibold">${p.name}</h3>
+          <p>${p.description}</p>
+          <p class="text-sm text-gray-500">Due: ${p.deadline}</p>
+        </div>`
+      ).join("");
+
+      document.getElementById("users").innerHTML = users.map(u =>
+        `<div class="p-4 bg-white rounded shadow">
+          <p><strong>${u.username}</strong></p>
+          <p class="text-sm text-gray-500">${u.email}</p>
+        </div>`
+      ).join("");
+
+      document.getElementById("documents").innerHTML = assignedDocs.map(d =>
+        `<div class="p-4 bg-white rounded shadow">
+          <p><strong>File:</strong> ${d.file.split('/').pop()}</p>
+          <p><strong>By:</strong> User ${d.uploaded_by}</p>
+          <a href="${d.file}" class="text-indigo-600 text-sm hover:underline">Download</a>
+        </div>`
+      ).join("");
+    }
+
+    fetchDashboard();
+  </script>
+
+</body>
+</html>

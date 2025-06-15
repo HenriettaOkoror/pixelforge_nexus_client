@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PixelForge Nexus - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <!-- Top Navigation -->
+  <nav class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-xl font-semibold">PixelForge Nexus</h1>
+    <div class="flex items-center gap-4">
+      <span id="user-role" class="text-sm font-medium text-gray-600"></span>
+      <button id="logoutBtn" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-md p-4 space-y-4">
+      <nav class="flex flex-col space-y-2">
+        <a href="/dashboard.html" class="text-blue-600 hover:underline">Dashboard</a>
+        <a href="/projects.html" class="hover:underline">Projects</a>
+        <a href="/account.html" class="hover:underline">Account Settings</a>
+        <a id="admin-users-link" href="/users.html" class="hover:underline hidden">Manage Users</a>
+      </nav>
+    </aside>
+
+    <!-- Page Content -->
+    <main class="flex-1 p-6">
+      <div id="dashboard-content">
+        <!-- Dynamic role-based content goes here -->
+        <h2 class="text-2xl font-bold mb-4">Welcome to your Dashboard</h2>
+        <p>This content will be replaced based on your role (admin, lead, dev).</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Simulated role fetch (replace with actual fetch from /auth or decoded JWT)
+    const userRole = localStorage.getItem('role') || 'dev';
+    document.getElementById('user-role').textContent = userRole.toUpperCase();
+
+    // Role-based logic for sidebar links
+    if (userRole === 'admin') {
+      document.getElementById('admin-users-link').classList.remove('hidden');
+    }
+
+    // Logout button clears tokens
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.clear();
+      window.location.href = '../login.html';
+    });
+  </script>
+</body>
+</html>
