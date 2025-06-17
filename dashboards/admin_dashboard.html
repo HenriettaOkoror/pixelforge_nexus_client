@@ -1,104 +1,550 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Admin Dashboard</title>
+	<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
 
-  <!-- Navbar -->
-  <header class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold text-indigo-600">PixelForge Admin Dashboard</h1>
-    <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-1 rounded">Logout</button>
-  </header>
+<body class="bg-gray-100 min-h-screen flex">
+	<!-- Sidebar -->
+	<aside class="w-64 bg-white shadow-md">
+		<div class="p-6 text-xl font-bold text-indigo-700">Admin Panel</div>
+		<nav class="space-y-2">
+			<a href="#" onclick="showSection('usersSection')" class="block px-6 py-2 hover:bg-indigo-100">Users</a>
+			<a href="#" onclick="showSection('projectsSection')" class="block px-6 py-2 hover:bg-indigo-100">Projects</a>
+			<a href="#" onclick="showSection('documentsSection')" class="block px-6 py-2 hover:bg-indigo-100">Documents</a>
+		</nav>
+	</aside>
 
-  <!-- Content -->
-  <div class="flex flex-1">
-    <!-- Sidebar -->
-    <aside class="w-64 bg-white shadow-md p-4 space-y-4">
-      <p class="text-gray-700 font-semibold">Navigation</p>
-      <nav class="space-y-2">
-        <a href="#users" class="block text-indigo-700 hover:underline">User Management</a>
-        <a href="#projects" class="block text-indigo-700 hover:underline">Project Management</a>
-        <a href="#documents" class="block text-indigo-700 hover:underline">Documents</a>
-      </nav>
-    </aside>
+	<!-- Main Content -->
+	<main class="flex-1 p-6">
+		<div class="flex justify-between mb-6">
+			<h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+			<button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">Logout</button>
+		</div>
 
-    <!-- Main content -->
-    <main class="flex-1 p-6 space-y-10">
+		<!-- Users Section -->
+		<section id="usersSection" class="hidden">
+			<div class="flex justify-between items-center mb-4">
+				<h2 class="text-xl font-semibold text-gray-700">Manage Users</h2>
+				<button onclick="openUserForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add User</button>
+			</div>
+			<div id="usersTable" class="bg-white shadow-md rounded overflow-x-auto p-4"></div>
+		</section>
 
-      <!-- Welcome Section -->
-      <section>
-        <h2 class="text-2xl font-bold text-gray-800">Welcome, Admin</h2>
-        <p class="text-gray-600">You have full control over users, projects, and documents.</p>
-      </section>
+		<!-- Projects Section -->
+		<section id="projectsSection" class="hidden">
+			<div class="flex justify-between items-center mb-4">
+				<h2 class="text-xl font-semibold text-gray-700">Manage Projects</h2>
+				<button onclick="openProjectForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Project</button>
+			</div>
+			<div id="projectsTable" class="bg-white shadow-md rounded overflow-x-auto p-4"></div>
+		</section>
 
-      <!-- User Management -->
-      <section id="users">
-        <h3 class="text-xl font-semibold text-indigo-600 mb-4">User Management</h3>
-        <div id="userList" class="bg-white p-4 rounded shadow">
-          <p class="text-gray-500">Loading users...</p>
+		<!-- Documents Section -->
+		<section id="documentsSection" class="hidden">
+			<div class="flex justify-between items-center mb-4">
+				<h2 class="text-xl font-semibold text-gray-700">Manage Documents</h2>
+				<button onclick="openDocumentForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Upload Document</button>
+			</div>
+			<div id="documentsTable" class="bg-white shadow-md rounded overflow-x-auto p-4"></div>
+		</section>
+	</main>
+	<!-- Modal Container -->
+	<div id="modalContainer"></div>
+
+	<script>
+		const loginPath = "../login.html";
+
+
+		function showSection(id) {
+			document.querySelectorAll("section").forEach(sec => sec.classList.add("hidden"));
+			document.getElementById(id).classList.remove("hidden");
+		}
+
+		function logout() {
+			localStorage.clear();
+			window.location.href = loginPath;
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			showSection('usersSection');
+			loadUsers();
+			loadProjects();
+			loadDocuments();
+		});
+
+		function openProjectForm() {
+			document.getElementById("modalContainer").innerHTML = `
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-96 shadow">
+        <h3 class="text-lg font-bold mb-4">Add Project</h3>
+        <form onsubmit="createProject(event)">
+          <input type="text" id="projectName" placeholder="Project Name" required class="w-full border mb-2 p-2 rounded" />
+          <textarea id="projectDesc" placeholder="Project Description" required class="w-full border mb-2 p-2 rounded"></textarea>
+          <input type="date" id="projectDeadline" required class="w-full border mb-4 p-2 rounded" />
+          <div class="flex justify-end space-x-2">
+            <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+            <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+		}
+
+
+		function openDocumentForm() {
+			showModal("Upload Document", `
+    <select name="project_id" class="w-full border rounded px-3 py-2" required>
+      <option value="">Select Project</option>
+      <option value="1">Project Phoenix</option>
+      <option value="2">Neural Sync</option>
+    </select>
+    <input type="file" name="document" class="w-full border rounded px-3 py-2" required>
+  `);
+		}
+
+		function showModal(title, formHTML) {
+			document.getElementById("modalTitle").textContent = title;
+			document.getElementById("modalForm").innerHTML = formHTML;
+			document.getElementById("modalContainer").classList.remove("hidden");
+			document.getElementById("modalContainer").classList.add("flex");
+		}
+
+		function closeModal() {
+			document.getElementById("modalContainer").classList.add("hidden");
+			document.getElementById("modalContainer").classList.remove("flex");
+		}
+
+		function getToken() {
+			const token = localStorage.getItem("access");
+			if (!token) {
+				window.location.href = loginPath;
+			}
+			return token;
+		}
+		// Fetch and populate users table
+		async function loadUsers() {
+			try {
+				const res = await fetch("http://localhost:8000/api/users/", {
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+
+				if (!res.ok) {
+					if (res.status === 401 || res.status === 403) {
+						window.location.href = loginPath;
+					}
+					throw new Error(`HTTP error! Status: ${res.status}`);
+				}
+
+				const users = await res.json();
+				const container = document.getElementById("usersTable");
+				container.innerHTML = `
+      <table class="min-w-full table-auto text-sm">
+        <thead>
+          <tr class="bg-indigo-600 text-white">
+            <th class="px-4 py-2 text-left">Username</th>
+            <th class="px-4 py-2 text-left">Email</th>
+            <th class="px-4 py-2 text-left">Role</th>
+            <th class="px-4 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map(user => `
+            <tr>
+              <td class="px-4 py-2">${user.username}</td>
+              <td class="px-4 py-2">${user.email}</td>
+              <td class="px-4 py-2">${user.role}</td>
+              <td class="px-4 py-2 space-x-2">
+                <button onclick="openEditUserModal(${user.id}, '${user.username}', '${user.email}', '${user.role}')" class="bg-yellow-500 text-white px-2 py-1 rounded">Edit</button>
+                <button onclick="deleteUser(${user.id})" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+			} catch (error) {
+				console.error("Fetch error:", error.message);
+			}
+		}
+
+		// Open Create User modal
+		function openUserForm() {
+			document.getElementById("modalContainer").innerHTML = `
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-96 shadow">
+        <h3 class="text-lg font-bold mb-4">Add User</h3>
+        <form onsubmit="createUser(event)">
+          <input type="text" id="newUsername" placeholder="Username" required class="w-full border mb-2 p-2 rounded" />
+          <input type="email" id="newEmail" placeholder="Email" required class="w-full border mb-2 p-2 rounded" />
+          <input type="password" id="newPassword" placeholder="Password" required class="w-full border mb-2 p-2 rounded" />
+          <select id="newRole" required class="w-full border mb-4 p-2 rounded">
+            <option value="">Select Role</option>
+            <option value="admin">Admin</option>
+            <option value="lead">Project Lead</option>
+            <option value="dev">Developer</option>
+          </select>
+          <div class="flex justify-end space-x-2">
+            <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+            <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+		}
+
+		// Open Edit modal
+		function openEditUserModal(id, username, email, role) {
+			document.getElementById("modalContainer").innerHTML = `
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 w-96 shadow">
+        <h3 class="text-lg font-bold mb-4">Edit User</h3>
+        <form onsubmit="editUser(event, ${id})">
+          <input type="text" id="editUsername" value="${username}" required class="w-full border mb-2 p-2 rounded" />
+          <input type="email" id="editEmail" value="${email}" required class="w-full border mb-2 p-2 rounded" />
+          <select id="editRole" required class="w-full border mb-4 p-2 rounded">
+            <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="lead" ${role === 'lead' ? 'selected' : ''}>Project Lead</option>
+            <option value="dev" ${role === 'dev' ? 'selected' : ''}>Developer</option>
+          </select>
+          <div class="flex justify-end space-x-2">
+            <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+            <button type="submit" class="bg-yellow-600 text-white px-3 py-1 rounded">Update</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+		}
+
+		// Create user
+		async function createUser(e) {
+			e.preventDefault();
+			const data = {
+				username: document.getElementById("newUsername").value,
+				email: document.getElementById("newEmail").value,
+				password: document.getElementById("newPassword").value,
+				role: document.getElementById("newRole").value,
+			};
+			await fetch("http://localhost:8000/api/users/", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			closeModal();
+			loadUsers();
+		}
+
+		// Update user
+		async function editUser(e, id) {
+			e.preventDefault();
+			const data = {
+				username: document.getElementById("editUsername").value,
+				email: document.getElementById("editEmail").value,
+				role: document.getElementById("editRole").value,
+			};
+			await fetch(`http://localhost:8000/api/users/${id}/`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			closeModal();
+			loadUsers();
+		}
+
+		// Delete user
+		async function deleteUser(id) {
+			if (confirm("Are you sure you want to delete this user?")) {
+				await fetch(`http://localhost:8000/api/users/${id}/`, {
+					method: "DELETE",
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+				loadUsers();
+			}
+		}
+
+		// Modal close
+		function closeModal() {
+			document.getElementById("modalContainer").innerHTML = "";
+		}
+
+		async function loadProjects() {
+			const res = await fetch("http://localhost:8000/api/projects/", {
+				headers: { Authorization: `Bearer ${getToken()}` }
+			});
+
+			if (!res.ok) {
+				if (res.status === 401 || res.status === 403) {
+					window.location.href = loginPath;
+				}
+				throw new Error(`HTTP error! Status: ${res.status}`);
+			}
+
+			const projects = await res.json();
+			const container = document.getElementById("projectsTable");
+			container.innerHTML = `
+  <table class="min-w-full table-auto text-sm">
+    <thead>
+      <tr class="bg-indigo-600 text-white text-left">
+        <th class="px-4 py-2 w-1/5 text-left">Name</th>
+        <th class="px-4 py-2 w-1/5 text-left">Description</th>
+        <th class="px-4 py-2 w-1/5 text-left">Deadline</th>
+        <th class="px-4 py-2 w-1/5 text-left">Completed</th>
+        <th class="px-4 py-2 w-1/5 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${projects.map(p => `
+        <tr>
+          <td class="px-4 py-2 w-1/5">${p.name}</td>
+          <td class="px-4 py-2 w-1/5">${p.description}</td>
+          <td class="px-4 py-2 w-1/5">${p.deadline}</td>
+          <td class="px-4 py-2 w-1/5">${p.is_completed ? "✅" : "❌"}</td>
+          <td class="px-4 py-2 w-1/5">
+            <div class="flex flex-wrap gap-1">
+              ${!p.is_completed ? `
+                <button onclick="editProjectForm(${p.id}, '${p.name}', \`${p.description}\`, '${p.deadline}', ${p.is_completed})" class="bg-yellow-500 text-white px-2 py-1 rounded">Edit</button>
+              ` : ''}
+              <button onclick="deleteProject(${p.id})" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+              ${!p.is_completed ? `
+                <button onclick="markProjectComplete(${p.id})" class="bg-green-600 text-white px-2 py-1 rounded">Mark Complete</button>
+              ` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  </table>
+`;
+
+		}
+
+		async function createProject(e) {
+			e.preventDefault();
+			const data = {
+				name: document.getElementById("projectName").value,
+				description: document.getElementById("projectDesc").value,
+				deadline: document.getElementById("projectDeadline").value
+			};
+			await fetch("http://localhost:8000/api/projects/", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			closeModal();
+			loadProjects();
+		}
+
+		async function updateProject(e, id) {
+			e.preventDefault();
+			const data = {
+				name: document.getElementById("editProjectName").value,
+				description: document.getElementById("editProjectDesc").value,
+				deadline: document.getElementById("editProjectDeadline").value
+			};
+			await fetch(`http://localhost:8000/api/projects/${id}/`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			closeModal();
+			loadProjects();
+		}
+
+		async function deleteProject(id) {
+			if (confirm("Delete this project?")) {
+				await fetch(`http://localhost:8000/api/projects/${id}/`, {
+					method: "DELETE",
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+				loadProjects();
+			}
+		}
+
+		async function markProjectComplete(id) {
+			await fetch(`http://localhost:8000/api/projects/${id}/`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify({ is_completed: true })
+			});
+			loadProjects();
+		}
+
+		async function loadDocuments() {
+			try {
+				const res = await fetch("http://localhost:8000/api/documents/", {
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+
+				if (!res.ok) {
+					if (res.status === 401 || res.status === 403) {
+						window.location.href = loginPath;
+					}
+					throw new Error(`HTTP error! Status: ${res.status}`);
+				}
+
+				const docs = await res.json();
+				const container = document.getElementById("documentsTable");
+				container.innerHTML = `
+				<table class="min-w-full table-auto text-sm">
+					<thead>
+						<tr class="bg-indigo-600 text-white">
+							<th class="px-4 py-2 text-left">Project</th>
+							<th class="px-4 py-2 text-left">File</th>
+							<th class="px-4 py-2 text-left">Uploaded At</th>
+							<th class="px-4 py-2 text-left">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						${docs.map(d => `
+							<tr>
+								<td class="px-4 py-2">${d.project_name || "—"}</td>
+								<td class="px-4 py-2">
+									<a href="${d.file}" class="text-blue-600 underline" target="_blank">${d.file.split("/").pop()}</a>
+								</td>
+								<td class="px-4 py-2">${new Date(d.uploaded_at).toLocaleString()}</td>
+								<td class="px-4 py-2 space-x-2">
+									<button onclick="openEditDocumentModal(${d.id}, '${d.project_id}')" class="bg-yellow-500 text-white px-2 py-1 rounded">Edit</button>
+									<button onclick="deleteDocument(${d.id})" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
+								</td>
+							</tr>
+						`).join("")}
+					</tbody>
+				</table>
+			`;
+			} catch (error) {
+				console.log("Error loading documents: ", { error });
+			}
+		}
+
+		function openDocumentForm() {
+			// Dynamically fetch project options
+			fetch("http://localhost:8000/api/projects/", {
+				headers: { Authorization: `Bearer ${getToken()}` }
+			})
+				.then(res => res.json())
+				.then(projects => {
+					const options = projects.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+					document.getElementById("modalContainer").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 w-96 shadow">
+            <h3 class="text-lg font-bold mb-4">Upload Document</h3>
+            <form onsubmit="uploadDocument(event)">
+              <select id="docProject" required class="w-full border mb-2 p-2 rounded">
+                <option value="">Select Project</option>
+                ${options}
+              </select>
+              <input type="file" id="docFile" required class="w-full border mb-4 p-2 rounded" />
+              <div class="flex justify-end space-x-2">
+                <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+                <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Upload</button>
+              </div>
+            </form>
+          </div>
         </div>
-      </section>
+      `;
+				});
+		}
 
-      <!-- Project Management -->
-      <section id="projects">
-        <h3 class="text-xl font-semibold text-indigo-600 mb-4">Project Management</h3>
-        <div id="projectList" class="bg-white p-4 rounded shadow">
-          <p class="text-gray-500">Loading projects...</p>
+		async function uploadDocument(e) {
+			e.preventDefault();
+			const formData = new FormData();
+			formData.append("project", document.getElementById("docProject").value);
+			formData.append("file", document.getElementById("docFile").files[0]);
+
+			await fetch("http://localhost:8000/api/documents/", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: formData
+			});
+
+			closeModal();
+			loadDocuments();
+		}
+
+		async function deleteDocument(id) {
+			if (confirm("Delete this document?")) {
+				await fetch(`http://localhost:8000/api/documents/${id}/`, {
+					method: "DELETE",
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+				loadDocuments();
+			}
+		}
+
+		function openEditDocumentModal(documentId, currentProjectId) {
+			fetch("http://localhost:8000/api/projects/", {
+				headers: { Authorization: `Bearer ${getToken()}` }
+			})
+				.then(res => res.json())
+				.then(projects => {
+					const projectOptions = projects.map(
+						p => `<option value="${p.id}" ${p.id == currentProjectId ? "selected" : ""}>${p.name}</option>`
+					).join("");
+
+					document.getElementById("modalContainer").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 w-96 shadow">
+            <h3 class="text-lg font-bold mb-4">Edit Document</h3>
+            <form onsubmit="submitEditDocument(event, ${documentId})">
+              <label class="block mb-2">Change Project</label>
+              <select id="editDocProject" class="w-full border mb-4 p-2 rounded" required>
+                ${projectOptions}
+              </select>
+              <div class="flex justify-end space-x-2">
+                <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+                <button type="submit" class="bg-yellow-600 text-white px-3 py-1 rounded">Update</button>
+              </div>
+            </form>
+          </div>
         </div>
-      </section>
+      `;
+				})
+				.catch(err => {
+					console.error("Error fetching projects for edit modal:", err);
+				});
+		}
 
-      <!-- Document Management -->
-      <section id="documents">
-        <h3 class="text-xl font-semibold text-indigo-600 mb-4">Document Management</h3>
-        <div id="documentList" class="bg-white p-4 rounded shadow">
-          <p class="text-gray-500">Loading documents...</p>
-        </div>
-      </section>
 
-    </main>
-  </div>
+		async function submitEditDocument(e, id) {
+			e.preventDefault();
+			const projectId = document.getElementById("editDocProject").value;
+			await fetch(`http://localhost:8000/api/documents/${id}/`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${getToken()}`
+				},
+				body: JSON.stringify({ project: parseInt(projectId) })
+			});
+			closeModal();
+			loadDocuments();
+		}
 
-  <script>
-    const logoutBtn = document.getElementById("logoutBtn");
-
-    logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
-      window.location.href = "../login.html";
-    });
-
-    const accessToken = localStorage.getItem("access");
-    if (!accessToken) {
-      window.location.href = "login.html";
-    }
-
-    // Decode JWT (basic, no validation) to check role
-    function parseJwt(token) {
-      try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        return JSON.parse(decodeURIComponent(atob(base64).split('').map(c =>
-          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-        ).join('')));
-      } catch (e) {
-        return null;
-      }
-    }
-
-    const payload = parseJwt(accessToken);
-    if (!payload || payload.role !== "admin") {
-      alert("Unauthorized access");
-      window.location.href = "login.html";
-    }
-
-    // TODO: Fetch and populate Users, Projects, and Documents
-    // Example:
-    // fetch("/api/users/", { headers: { Authorization: `Bearer ${accessToken}` } })
-
-  </script>
+	</script>
 </body>
+
 </html>
