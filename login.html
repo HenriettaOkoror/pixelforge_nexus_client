@@ -33,16 +33,22 @@
 				</button>
 			</div>
 
+			<div id="mfaWrapper" class="hidden">
+				<label for="mfaCode" class="block text-sm font-medium text-gray-600">MFA Code</label>
+				<input type="text" id="mfaCode" name="mfaCode"
+					class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg ring :ring-indigo-300">
+			</div>
+
 			<div>
 				<button type="submit"
 					class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Login</button>
 			</div>
 			<p class="mt-4 text-sm text-center text-gray-600">
-  Don’t have an account?
-  <a href="register.html" class="text-indigo-600 hover:underline font-medium">
-    Register here
-  </a>
-</p>
+				Cannot login?
+				<a href="register.html" class="text-indigo-600 hover:underline font-medium">
+					Reset your password
+				</a>
+			</p>
 
 		</form>
 		<p id="loginError" class="text-red-600 text-sm text-center hidden">Invalid credentials. Please try again.</p>
@@ -56,38 +62,57 @@
 		toggleBtn.addEventListener("click", () => {
 			const type = passwordInput.type === "password" ? "text" : "password";
 			passwordInput.type = type;
-
 			// Toggle icon appearance (optional - for now, we keep same icon)
 			eyeIcon.classList.toggle("text-indigo-500");
 		});
 
+		let awaitingMFA = false;
+		let cachedCreds = {};
 		document.getElementById('loginForm').addEventListener('submit', async (e) => {
 			e.preventDefault();
+
 			const username = document.getElementById('username').value;
 			const password = document.getElementById('password').value;
+			const mfaCode = document.getElementById('mfaCode')?.value;
+			const payload = awaitingMFA
+				? { ...cachedCreds, mfa_code: mfaCode }
+				: { username, password };
+
 			try {
 				const response = await fetch('http://localhost:8000/api/auth/token/', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ username, password })
+					body: JSON.stringify(payload)
 				});
-
-				if (!response.ok) throw new Error('Login failed');
-
 				const data = await response.json();
+
+				if (!response.ok) {
+					if (data.detail?.includes("MFA code required.")) {
+						document.getElementById('mfaWrapper').classList.remove('hidden');
+						awaitingMFA = true;
+						cachedCreds = { username, password };
+						return;
+					} else if (data.detail?.includes("Invalid MFA code")) {
+						alert("Invalid MFA code. Please try again.");
+						return;
+					} else {
+						throw new Error(data.detail || 'Login failed');
+					}
+				}
+
+				// Save tokens and redirect
 				localStorage.setItem('access', data.access);
 				localStorage.setItem('refresh', data.refresh);
-				if (data.role === 'admin') {
-					window.location.href = 'dashboards/admin_dashboard.html';
-				} else if (data.role === 'dev') {
-					window.location.href = 'dashboards/dev_dashboard.html';
-				} else if (data.role === 'lead') {
-					window.location.href = 'dashboards/lead_dashboard.html';
-				} else {
-					window.location.href = '/dashboard.html';
-				}
+				const dashboard = {
+					admin: 'dashboards/admin_dashboard.html',
+					dev: 'dashboards/dev_dashboard.html',
+					lead: 'dashboards/lead_dashboard.html'
+				}[data.role] || '/dashboard.html';
+
+				window.location.href = dashboard;
 			} catch (err) {
 				document.getElementById('loginError').classList.remove('hidden');
+				document.getElementById('loginError').textContent = err.message;
 			}
 		});
 	</script>

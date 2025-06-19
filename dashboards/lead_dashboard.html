@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project Lead Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-100 min-h-screen flex">
 
   <!-- Sidebar -->
@@ -14,6 +16,8 @@
     <nav class="space-y-2">
       <a href="#" onclick="showSection('projectsSection')" class="block px-6 py-2 hover:bg-indigo-100">My Projects</a>
       <a href="#" onclick="showSection('documentsSection')" class="block px-6 py-2 hover:bg-indigo-100">My Documents</a>
+      <a href="#" onclick="showSection('accountsSection')" class="block px-6 py-2 hover:bg-indigo-100">Account
+        Settings</a>
     </nav>
   </aside>
 
@@ -30,10 +34,11 @@
       <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
         <thead class="bg-indigo-600 text-white">
           <tr class="text-left text-sm">
-            <th class="px-4 py-2 w-1/4">Project Name</th>
-            <th class="px-4 py-2 w-1/4">Description</th>
-            <th class="px-4 py-2 w-1/4">Deadline</th>
-            <th class="px-4 py-2 w-1/4">Actions</th>
+            <th class="px-4 py-2 w-1/5">Name</th>
+            <th class="px-4 py-2 w-1/5">Description</th>
+            <th class="px-4 py-2 w-1/5">Start Date</th>
+            <th class="px-4 py-2 w-1/5">Members</th>
+            <th class="px-4 py-2 w-1/5">Actions</th>
           </tr>
         </thead>
         <tbody id="projectTableBody" class="text-sm text-gray-700"></tbody>
@@ -54,52 +59,176 @@
         <tbody id="documentTableBody" class="text-sm text-gray-700"></tbody>
       </table>
     </section>
+
+    <div id="modalContainer" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div id="modalContent" class="bg-white rounded-lg p-6 w-96 shadow"></div>
+    </div>
+
+    <!-- Accounts Section -->
+    <section id="accountsSection" class="hidden"></section>
   </main>
 
   <script>
     const token = localStorage.getItem("access");
+    const loginPath = "../login.html";
 
     function logout() {
       localStorage.removeItem("access");
-      window.location.href = "login.html";
+      window.location.href = loginPath;
     }
 
-    function showSection(sectionId) {
-      document.querySelectorAll("main section").forEach(sec => sec.classList.add("hidden"));
-      document.getElementById(sectionId).classList.remove("hidden");
+    function getToken() {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        window.location.href = loginPath;
+      }
+      return token;
+    }
 
+    async function showSection(sectionId) {
+      // Hide all sections
+      document.querySelectorAll("main section").forEach(sec => sec.classList.add("hidden"));
+
+      // Highlight active nav
+      document.querySelectorAll("aside nav a").forEach(link => {
+        link.classList.remove("bg-indigo-100", "font-semibold");
+        if (link.getAttribute("onclick").includes(sectionId)) {
+          link.classList.add("bg-indigo-100", "font-semibold");
+        }
+      });
+
+      // Store active section
+      localStorage.setItem("activeSection", sectionId);
+
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+
+      // Load account settings dynamically
+      if (sectionId === 'accountsSection') {
+        if (!section.dataset.loaded) {
+          try {
+            const res = await fetch('account_settings.html');
+            const html = await res.text();
+            section.innerHTML = html;
+            section.dataset.loaded = "true";
+          } catch (err) {
+            section.innerHTML = '<p class="text-red-600">Failed to load account settings.</p>';
+          }
+        }
+      }
+
+      // Load data if section requires
       if (sectionId === 'projectsSection') {
         fetchProjects();
       } else if (sectionId === 'documentsSection') {
         fetchDocuments();
       }
+
+      section.classList.remove("hidden");
+    }
+
+
+    function closeModal() {
+      document.getElementById("modalContainer").classList.add("hidden");
+      document.getElementById("modalContent").innerHTML = "";
+    }
+
+    function showModal(contentHTML) {
+      document.getElementById("modalContent").innerHTML = contentHTML;
+      document.getElementById("modalContainer").classList.remove("hidden");
+    }
+
+    async function assign(projectId) {
+      const [devRes, assignmentRes] = await Promise.all([
+        fetch("http://localhost:8000/api/users/?role=dev", {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        }),
+        fetch(`http://localhost:8000/api/assignments/?project_id=${projectId}`, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        })
+      ]);
+
+      const devs = await devRes.json();
+      const assignments = await assignmentRes.json();
+      const assignedUserIds = assignments.map(a => a.user);
+
+      const options = devs.map(dev =>
+        `<option value="${dev.id}" ${assignedUserIds.includes(dev.id) ? "selected" : ""}>
+        ${dev.username} (${dev.email})
+        </option>`
+      ).join("");
+
+      const form = `
+          <h3 class="text-lg font-bold mb-4">Assign Developers</h3>
+          <form onsubmit="submitAssignment(event, ${projectId})">
+            <label class="block mb-2">Select Developers</label>
+            <select id="developerIds" multiple required class="w-full border mb-4 p-2 rounded h-40 overflow-y-auto">
+              ${options}
+            </select>
+            <div class="flex justify-end space-x-2">
+              <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
+              <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Assign</button>
+            </div>
+          </form>
+        `;
+      showModal(form);
+    }
+
+    async function submitAssignment(e, projectId) {
+      e.preventDefault();
+      const select = document.getElementById("developerIds");
+      const selectedIds = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+      const token = getToken();
+      await fetch("http://localhost:8000/api/assignments/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ users: selectedIds, project: projectId })
+      });
+      closeModal();
+      fetchProjects();
     }
 
     async function fetchProjects() {
-      const res = await fetch("http://localhost:8000/api/projects/lead/", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const projects = await res.json();
-      const tbody = document.getElementById("projectTableBody");
-      tbody.innerHTML = "";
-      projects.forEach(project => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td class="border px-4 py-2">${project.name}</td>
-          <td class="border px-4 py-2">${project.description}</td>
-          <td class="border px-4 py-2">${project.deadline}</td>
-          <td class="border px-4 py-2 space-x-2">
-            <button onclick="assign(${project.id})" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded">Assign Dev</button>
-            <button onclick="uploadDoc(${project.id})" class="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">Upload Doc</button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
+      try {
+        const res = await fetch("http://localhost:8000/api/projects/", {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            window.location.href = loginPath;
+          }
+          throw new Error(`HTTP error! Status: ${res.status}`);
+        }
+
+        const projects = await res.json();
+        const tbody = document.getElementById("projectTableBody");
+        tbody.innerHTML = "";
+        projects.forEach(project => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td class="border px-4 py-2">${project.name}</td>
+            <td class="border px-4 py-2">${project.description}</td>
+            <td class="border px-4 py-2">${project.start_date || "—"}</td>
+            <td class="border px-4 py-2">${project.members.join()}</td>
+            <td class="border px-4 py-2 space-x-2">
+              <button onclick="assign(${project.id})" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded">Assign Dev</button>
+              <button onclick="uploadDoc(${project.id})" class="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">Upload Doc</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
     }
 
     async function fetchDocuments() {
-      const res = await fetch("http://localhost:8000/api/documents/my/", {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch("http://localhost:8000/api/documents/", {
+        headers: { Authorization: `Bearer ${getToken()}` }
       });
       const documents = await res.json();
       const tbody = document.getElementById("documentTableBody");
@@ -116,8 +245,10 @@
     }
 
     // Load projects by default
-    document.addEventListener("DOMContentLoaded", () => showSection('projectsSection'));
+    document.addEventListener("DOMContentLoaded", () => {
+      const saved = localStorage.getItem("activeSection") || 'projectsSection';
+      showSection(saved);
+    });
   </script>
-
 </body>
 </html>

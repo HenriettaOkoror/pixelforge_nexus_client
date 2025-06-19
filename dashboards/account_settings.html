@@ -1,0 +1,267 @@
+<div class="bg-gray-200 p-6 rounded shadow max-w-md">
+	<form onsubmit="changePassword(event)">
+		<!-- Old Password -->
+		<div class="mb-4 relative">
+			<label class="block text-gray-700 mb-2">Old Password</label>
+			<div class="relative">
+				<input type="password" id="oldPassword" required class="w-full border p-2 pr-10 rounded" />
+				<button type="button" class="absolute inset-y-0 right-0 px-3 flex items-center"
+					onclick="togglePassword('oldPassword', this)">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24"
+						stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+							d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+					</svg>
+				</button>
+			</div>
+		</div>
+
+		<!-- New Password -->
+		<div class="mb-4 relative">
+			<label class="block text-gray-700 mb-2">New Password</label>
+			<div class="relative">
+				<input type="password" id="newPassword" required class="w-full border p-2 pr-10 rounded" />
+				<button type="button" class="absolute inset-y-0 right-0 px-3 flex items-center"
+					onclick="togglePassword('newPassword', this)">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24"
+						stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+							d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+					</svg>
+				</button>
+			</div>
+			<div id="passwordFeedback" class="mt-2 text-sm text-red-600 hidden"></div>
+		</div>
+
+		<div class="flex justify-end space-x-2">
+			<button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Update Password</button>
+		</div>
+	</form>
+</div>
+
+<div>
+	<h3 class="text-lg font-bold my-4">Multi-Factor Authentication (MFA)</h3>
+	<p id="mfaInfo" class="mb-2 text-gray-700 hidden"></p>
+
+	<div id="mfaQRCodeContainer" class="border p-4 rounded mb-4 hidden">
+		<div id="mfaQRCode"></div>
+		<form onsubmit="verifyMFA(event)" class="space-y-2 mt-4">
+			<input type="text" id="mfaCode" placeholder="Enter code from your Authenticator app" required
+				class="w-full p-2 border rounded" />
+			<button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">Verify MFA</button>
+		</form>
+	</div>
+
+	<button id="toggleMFA" onclick="handleMFAToggle()" class="bg-indigo-600 text-white px-4 py-2 rounded">Enable</button>
+</div>
+<script>
+	const loginPath = "../login.html";
+
+	function logout() {
+		localStorage.removeItem("access");
+		window.location.href = loginPath;
+	}
+
+	function getToken() {
+		const token = localStorage.getItem("access");
+		if (!token) {
+			window.location.href = loginPath;
+		}
+		return token;
+	}
+
+	async function showSection(sectionId) {
+		document.querySelectorAll("main section").forEach(sec => sec.classList.add("hidden"));
+
+		document.querySelectorAll("aside nav a").forEach(link => {
+			link.classList.remove("bg-indigo-100", "font-semibold");
+			if (link.getAttribute("onclick").includes(sectionId)) {
+				link.classList.add("bg-indigo-100", "font-semibold");
+			}
+		});
+
+		localStorage.setItem("activeSection", sectionId);
+
+		const section = document.getElementById(sectionId);
+		if (!section) return;
+
+		if (sectionId === 'accountsSection') {
+			if (!section.dataset.loaded) {
+				try {
+					const response = await fetch('account_settings.html');
+					const html = await response.text();
+					section.innerHTML = html;
+					section.dataset.loaded = "true";
+					checkMFAStatus(); // run after content is injected
+				} catch (err) {
+					section.innerHTML = '<p class="text-red-600">Failed to load account settings.</p>';
+					console.error(err);
+				}
+			}
+		}
+
+		section.classList.remove("hidden");
+
+		if (sectionId === 'projectsSection') {
+			fetchProjects();
+		} else if (sectionId === 'dashboardSection') {
+			fetchDocuments();
+		}
+	}
+
+	async function fetchProjects() {
+		const res = await fetch("http://localhost:8000/api/projects/", {
+			headers: { Authorization: `Bearer ${getToken()}` }
+		});
+		const projects = await res.json();
+		const tbody = document.getElementById("projectTableBody");
+		tbody.innerHTML = "";
+		projects.forEach(project => {
+			const row = document.createElement("tr");
+			row.innerHTML = `
+      <td class="border px-4 py-2">${project.name}</td>
+      <td class="border px-4 py-2">${project.description}</td>
+      <td class="border px-4 py-2">${project.deadline}</td>
+      <td class="border px-4 py-2">${project.is_completed ? "Completed" : "Ongoing"}</td>
+    `;
+			tbody.appendChild(row);
+		});
+	}
+
+	async function fetchDocuments() {
+		const res = await fetch("http://localhost:8000/api/documents/", {
+			headers: { Authorization: `Bearer ${getToken()}` }
+		});
+		const documents = await res.json();
+		const tbody = document.getElementById("documentTableBody");
+		tbody.innerHTML = "";
+		documents.forEach(doc => {
+			const row = document.createElement("tr");
+			row.innerHTML = `
+      <td class="border px-4 py-2">${doc.file.split('/').pop()}</td>
+      <td class="border px-4 py-2">${new Date(doc.uploaded_at).toLocaleString()}</td>
+      <td class="border px-4 py-2">${doc.project_name || ''}</td>
+    `;
+			tbody.appendChild(row);
+		});
+	}
+
+	async function changePassword(event) {
+		event.preventDefault();
+		const oldPassword = document.getElementById("oldPassword").value;
+		const newPassword = document.getElementById("newPassword").value;
+		const feedback = document.getElementById("passwordFeedback");
+
+		if (!validatePasswordStrength(newPassword)) {
+			feedback.classList.remove("hidden");
+			feedback.classList.remove("text-green-600");
+			feedback.classList.add("text-red-600");
+			feedback.textContent = "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.";
+			return;
+		}
+
+		const res = await fetch("http://localhost:8000/api/auth/change-password/", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${getToken()}`
+			},
+			body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+		});
+
+		if (res.ok) {
+			feedback.classList.remove("text-red-600");
+			feedback.classList.add("text-green-600");
+			feedback.textContent = "Password changed successfully.";
+		} else {
+			const data = await res.json();
+			feedback.classList.remove("hidden");
+			feedback.textContent = data?.detail || "Error changing password.";
+		}
+	}
+
+	function validatePasswordStrength(password) {
+		const minLength = 8;
+		const hasUpper = /[A-Z]/.test(password);
+		const hasLower = /[a-z]/.test(password);
+		const hasNumber = /[0-9]/.test(password);
+		const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+		return password.length >= minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+	}
+
+	function togglePassword(inputId, button) {
+		const input = document.getElementById(inputId);
+		const isPassword = input.type === "password";
+		input.type = isPassword ? "text" : "password";
+		const svg = button.querySelector("svg");
+		svg.classList.toggle("text-indigo-500", isPassword);
+	}
+
+	async function checkMFAStatus() {
+  const btn = document.getElementById("toggleMFA");
+  const info = document.getElementById("mfaInfo");
+  const qrContainer = document.getElementById("mfaQRCodeContainer");
+
+  try {
+    const res = await fetch("http://localhost:8000/api/auth/mfa/status/", {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+
+    if (!res.ok) throw new Error("Unable to fetch MFA status");
+
+    const data = await res.json();
+
+    if (data.enabled) {
+      btn.textContent = "Disable MFA";
+      info.textContent = "MFA is currently enabled.";
+      info.classList.remove("hidden");
+      qrContainer.classList.add("hidden");
+    } else {
+      btn.textContent = "Enable MFA";
+      info.textContent = "";
+      info.classList.add("hidden");
+      qrContainer.classList.add("hidden");
+    }
+  } catch (err) {
+    console.error("MFA status check failed:", err);
+    info.textContent = "";
+    info.classList.add("hidden");
+  }
+}
+
+
+	async function handleMFAToggle() {
+		const mfaBtn = document.getElementById("toggleMFA");
+		const qrContainer = document.getElementById("mfaQRCodeContainer");
+		const qrDiv = document.getElementById("mfaQRCode");
+
+		if (mfaBtn.textContent.includes("Enable")) {
+			const res = await fetch("http://localhost:8000/api/auth/mfa/setup/", {
+				headers: { Authorization: `Bearer ${getToken()}` }
+			});
+			const data = await res.json();
+			qrDiv.innerHTML = `<img src="${data.qr_code}" class="w-40 h-40 mx-auto">`;
+			qrContainer.classList.remove("hidden");
+		} else {
+			if (confirm("Are you sure you want to disable MFA?")) {
+				await fetch("http://localhost:8000/api/auth/mfa/disable/", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${getToken()}` }
+				});
+				qrDiv.innerHTML = "";
+				qrContainer.classList.add("hidden");
+			}
+		}
+		checkMFAStatus();
+	}
+
+	document.addEventListener("DOMContentLoaded", () => {
+		const savedSection = localStorage.getItem("activeSection") || 'projectsSection';
+		showSection(savedSection);
+		checkMFAStatus();
+	});
+</script>

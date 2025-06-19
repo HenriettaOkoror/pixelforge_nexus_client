@@ -16,6 +16,8 @@
 			<a href="#" onclick="showSection('usersSection')" class="block px-6 py-2 hover:bg-indigo-100">Users</a>
 			<a href="#" onclick="showSection('projectsSection')" class="block px-6 py-2 hover:bg-indigo-100">Projects</a>
 			<a href="#" onclick="showSection('documentsSection')" class="block px-6 py-2 hover:bg-indigo-100">Documents</a>
+			<a href="#" onclick="showSection('accountsSection')" class="block px-6 py-2 hover:bg-indigo-100">Account
+				Settings</a>
 		</nav>
 	</aside>
 
@@ -39,7 +41,8 @@
 		<section id="projectsSection" class="hidden">
 			<div class="flex justify-between items-center mb-4">
 				<h2 class="text-xl font-semibold text-gray-700">Manage Projects</h2>
-				<button onclick="openProjectForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Project</button>
+				<button onclick="openProjectForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add
+					Project</button>
 			</div>
 			<div id="projectsTable" class="bg-white shadow-md rounded overflow-x-auto p-4"></div>
 		</section>
@@ -48,10 +51,13 @@
 		<section id="documentsSection" class="hidden">
 			<div class="flex justify-between items-center mb-4">
 				<h2 class="text-xl font-semibold text-gray-700">Manage Documents</h2>
-				<button onclick="openDocumentForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Upload Document</button>
+				<button onclick="openDocumentForm()" class="bg-indigo-600 text-white px-4 py-2 rounded">Upload
+					Document</button>
 			</div>
 			<div id="documentsTable" class="bg-white shadow-md rounded overflow-x-auto p-4"></div>
 		</section>
+		<!-- Accounts Section -->
+		<section id="accountsSection" class="hidden"></section>
 	</main>
 	<!-- Modal Container -->
 	<div id="modalContainer"></div>
@@ -59,23 +65,18 @@
 	<script>
 		const loginPath = "../login.html";
 
-
-		function showSection(id) {
-			document.querySelectorAll("section").forEach(sec => sec.classList.add("hidden"));
-			document.getElementById(id).classList.remove("hidden");
-		}
-
 		function logout() {
 			localStorage.clear();
 			window.location.href = loginPath;
 		}
 
-		document.addEventListener("DOMContentLoaded", () => {
-			showSection('usersSection');
-			loadUsers();
-			loadProjects();
-			loadDocuments();
-		});
+		function getToken() {
+			const token = localStorage.getItem("access");
+			if (!token) {
+				window.location.href = loginPath;
+			}
+			return token;
+		}
 
 		function openProjectForm() {
 			document.getElementById("modalContainer").innerHTML = `
@@ -85,7 +86,7 @@
         <form onsubmit="createProject(event)">
           <input type="text" id="projectName" placeholder="Project Name" required class="w-full border mb-2 p-2 rounded" />
           <textarea id="projectDesc" placeholder="Project Description" required class="w-full border mb-2 p-2 rounded"></textarea>
-          <input type="date" id="projectDeadline" required class="w-full border mb-4 p-2 rounded" />
+          <input type="date" id="projectStart" required class="w-full border mb-4 p-2 rounded" />
           <div class="flex justify-end space-x-2">
             <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
             <button type="submit" class="bg-indigo-600 text-white px-3 py-1 rounded">Create</button>
@@ -94,18 +95,6 @@
       </div>
     </div>
   `;
-		}
-
-
-		function openDocumentForm() {
-			showModal("Upload Document", `
-    <select name="project_id" class="w-full border rounded px-3 py-2" required>
-      <option value="">Select Project</option>
-      <option value="1">Project Phoenix</option>
-      <option value="2">Neural Sync</option>
-    </select>
-    <input type="file" name="document" class="w-full border rounded px-3 py-2" required>
-  `);
 		}
 
 		function showModal(title, formHTML) {
@@ -120,13 +109,44 @@
 			document.getElementById("modalContainer").classList.remove("flex");
 		}
 
-		function getToken() {
-			const token = localStorage.getItem("access");
-			if (!token) {
-				window.location.href = loginPath;
+		function showSection(id) {
+			// Hide all sections
+			document.querySelectorAll("main section").forEach(sec => sec.classList.add("hidden"));
+			document.querySelectorAll("aside nav a").forEach(link => {
+				link.classList.remove("bg-indigo-100", "font-semibold");
+				if (link.getAttribute("onclick")?.includes(id)) {
+					link.classList.add("bg-indigo-100", "font-semibold");
+				}
+			});
+
+			// Persist the current section
+			localStorage.setItem("activeSection", id);
+			const container = document.getElementById(id);
+			if (!container) return;
+
+			if (id === "accountsSection" && !container.hasChildNodes()) {
+				fetch("account_settings.html")
+					.then(res => res.text())
+					.then(html => {
+						container.innerHTML = html;
+					})
+					.catch(err => {
+						container.innerHTML = `<div class="text-red-500">Failed to load account settings.</div>`;
+					});
 			}
-			return token;
+
+			container.classList.remove("hidden");
+
+			// Load data depending on section
+			if (id === "usersSection") {
+				loadUsers();
+			} else if (id === "projectsSection") {
+				loadProjects();
+			} else if (id === "documentsSection") {
+				loadDocuments();
+			}
 		}
+
 		// Fetch and populate users table
 		async function loadUsers() {
 			try {
@@ -298,24 +318,26 @@
   <table class="min-w-full table-auto text-sm">
     <thead>
       <tr class="bg-indigo-600 text-white text-left">
-        <th class="px-4 py-2 w-1/5 text-left">Name</th>
-        <th class="px-4 py-2 w-1/5 text-left">Description</th>
-        <th class="px-4 py-2 w-1/5 text-left">Deadline</th>
-        <th class="px-4 py-2 w-1/5 text-left">Completed</th>
-        <th class="px-4 py-2 w-1/5 text-left">Actions</th>
+        <th class="px-4 py-2 w-1/6 text-left">Name</th>
+        <th class="px-4 py-2 w-1/6 text-left">Description</th>
+        <th class="px-4 py-2 w-1/6 text-left">Start Date</th>
+        <th class="px-4 py-2 w-1/6 text-left">Members</th>
+        <th class="px-4 py-2 w-1/6 text-left">Completed</th>
+        <th class="px-4 py-2 w-1/6 text-left">Actions</th>
       </tr>
     </thead>
     <tbody>
       ${projects.map(p => `
         <tr>
-          <td class="px-4 py-2 w-1/5">${p.name}</td>
-          <td class="px-4 py-2 w-1/5">${p.description}</td>
-          <td class="px-4 py-2 w-1/5">${p.deadline}</td>
-          <td class="px-4 py-2 w-1/5">${p.is_completed ? "✅" : "❌"}</td>
-          <td class="px-4 py-2 w-1/5">
+          <td class="px-4 py-2 w-1/6">${p.name}</td>
+          <td class="px-4 py-2 w-1/6">${p.description}</td>
+          <td class="px-4 py-2 w-1/6">${p.start_date}</td>
+		  		<td class="px-4 py-2 w-1/6">${p.members}</td>
+          <td class="px-4 py-2 w-1/6">${p.is_completed ? "✅" : "❌"}</td>
+          <td class="px-4 py-2 w-1/6">
             <div class="flex flex-wrap gap-1">
               ${!p.is_completed ? `
-                <button onclick="editProjectForm(${p.id}, '${p.name}', \`${p.description}\`, '${p.deadline}', ${p.is_completed})" class="bg-yellow-500 text-white px-2 py-1 rounded">Edit</button>
+                <button onclick="editProjectForm(${p.id}, '${p.name}', \`${p.description}\`, '${p.start_date}', ${p.is_completed})" class="bg-yellow-500 text-white px-2 py-1 rounded">Edit</button>
               ` : ''}
               <button onclick="deleteProject(${p.id})" class="bg-red-500 text-white px-2 py-1 rounded">Delete</button>
               ${!p.is_completed ? `
@@ -336,7 +358,7 @@
 			const data = {
 				name: document.getElementById("projectName").value,
 				description: document.getElementById("projectDesc").value,
-				deadline: document.getElementById("projectDeadline").value
+				start_date: document.getElementById("projectStart").value
 			};
 			await fetch("http://localhost:8000/api/projects/", {
 				method: "POST",
@@ -355,7 +377,7 @@
 			const data = {
 				name: document.getElementById("editProjectName").value,
 				description: document.getElementById("editProjectDesc").value,
-				deadline: document.getElementById("editProjectDeadline").value
+				start_date: document.getElementById("editprojectStart").value
 			};
 			await fetch(`http://localhost:8000/api/projects/${id}/`, {
 				method: "PATCH",
@@ -369,15 +391,15 @@
 			loadProjects();
 		}
 
-		function editProjectForm(id, name, description, deadline, is_completed) {
-  document.getElementById("modalContainer").innerHTML = `
+		function editProjectForm(id, name, description, start_date, is_completed) {
+			document.getElementById("modalContainer").innerHTML = `
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg p-6 w-96 shadow">
         <h3 class="text-lg font-bold mb-4">Edit Project</h3>
         <form onsubmit="updateProject(event, ${id})">
           <input type="text" id="editProjectName" value="${name}" required class="w-full border mb-2 p-2 rounded" />
           <textarea id="editProjectDesc" required class="w-full border mb-2 p-2 rounded">${description}</textarea>
-          <input type="date" id="editProjectDeadline" value="${deadline}" required class="w-full border mb-4 p-2 rounded" />
+          <input type="date" id="editprojectStart" value="${start_date}" required class="w-full border mb-4 p-2 rounded" />
           <div class="flex justify-end space-x-2">
             <button type="button" onclick="closeModal()" class="px-3 py-1 border rounded">Cancel</button>
             <button type="submit" class="bg-yellow-600 text-white px-3 py-1 rounded">Update</button>
@@ -386,7 +408,7 @@
       </div>
     </div>
   `;
-}
+		}
 
 
 		async function deleteProject(id) {
@@ -563,6 +585,13 @@
 			closeModal();
 			loadDocuments();
 		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			showSection('usersSection');
+			loadUsers();
+			loadProjects();
+			loadDocuments();
+		});
 
 	</script>
 </body>
